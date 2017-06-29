@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+
+    <groupId>com.session.cookie</groupId>
+    <artifactId>session-cookie</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+
+    <distributionManagement>
+        <!--<snapshotRepository>-->
+        <!--<id>oss</id>-->
+        <!--<url>https://oss.sonatype.org/content/repositories/snapshots</url>-->
+        <!--</snapshotRepository>-->
+        <!--<repository>-->
+        <!--<id>oss</id>-->
+        <!--<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>-->
+        <!--</repository>-->
+
+        <snapshotRepository>
+            <id>jbg</id>
+            <name>meicanyun Snapshot</name>
+            <url>http://maven.chongkouwei.com/nexus/content/repositories/snapshots/</url>
+            <uniqueVersion>true</uniqueVersion>
+        </snapshotRepository>
+
+        <repository>
+            <id>jbg</id>
+            <name>meicanyun Release</name>
+            <url>http://maven.chongkouwei.com/nexus/content/repositories/releases/</url>
+        </repository>
+    </distributionManagement>
+
+    <!--<repositories>-->
+    <!--<repository>-->
+    <!--<id>nexus</id>-->
+    <!--<name>meicanyun Nexus</name>-->
+    <!--<url>http://maven.chongkouwei.com/nexus/content/groups/public/</url>-->
+    <!--</repository>-->
+    <!--</repositories>-->
+
+
+    <repositories>
+        <repository>
+            <id>ali</id>
+            <url>http://maven.aliyun.com/nexus/content/groups/public/</url>
+        </repository>
+    </repositories>
+
+
+    <packaging>pom</packaging>
+
+    <developers>
+        <developer>
+            <name>Wang Zi Qing</name>
+            <email>eininst@aliyun.com</email>
+        </developer>
+    </developers>
+
+
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter</artifactId>
+                <version>1.5.3.RELEASE</version>
+            </dependency>
+
+            <dependency>
+                <groupId>commons-codec</groupId>
+                <artifactId>commons-codec</artifactId>
+                <version>1.9</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.session.cookie.core</groupId>
+                <artifactId>session-cookie-core</artifactId>
+                <version>1.0-SNAPSHOT</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <modules>
+        <module>session-cookie-core</module>
+        <module>spring-boot-session-cookie-starter</module>
+    </modules>
+</project>

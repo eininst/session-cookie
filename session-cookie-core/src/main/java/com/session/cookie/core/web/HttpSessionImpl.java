@@ -1,0 +1,311 @@
+package com.session.cookie.core.web;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.session.cookie.core.util.CookieDataCodec;
+import com.session.cookie.core.util.CookieEncryption;
+import com.session.cookie.core.util.Crypto;
+
+import javax.servlet.ServletContext;
+import javax.servlet.http.*;
+import java.io.UnsupportedEncodingException;
+import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Created by wangziqing on 17/6/22.
+ */
+public class HttpSessionImpl implements HttpSession {
+
+
+    private final static Logger logger = LoggerFactory.getLogger(HttpSessionImpl.class);
+
+    final String LAST_TIME_KEY = "___LT";
+    final String ID_KEY = "___ID";
+    final String TIMESTAMP_KEY = "___TS";
+    final String CREATE_TIME_KEY = "___CT";
+    final String EXPIRY_TIME_KEY = "___EP";
+    final String NEW_KEY = "___NEW";
+
+    private HttpServletRequest httpServletRequest;
+    private SessionConfig sessionConfig;
+
+    private Long sessionExpireTimeInMs;
+
+    private final String sessionCookieName;
+    private final Boolean sessionTransferredOverHttpsOnly;
+    private final Boolean sessionHttpOnly;
+    private final String applicationCookieDomain;
+
+    private final String secret;
+
+    private boolean sessionDataHasBeenChanged = false;
+
+
+    private volatile Map<String, String> data = new ConcurrentHashMap<>();
+
+    public HttpSessionImpl(HttpServletRequest httpServletRequest, SessionConfig sessionConfig) {
+        this.httpServletRequest = httpServletRequest;
+        this.sessionConfig = sessionConfig;
+        sessionCookieName = sessionConfig.getPrefix() + "_SESSION";
+        sessionExpireTimeInMs = sessionConfig.getExpire_time_in_seconds() * 1000l;
+        sessionTransferredOverHttpsOnly = sessionConfig.isTransferred_over_https_only();
+        sessionHttpOnly = sessionConfig.isHttp_only();
+        applicationCookieDomain = sessionConfig.getDomain();
+        secret = sessionConfig.getSecret();
+        init();
+    }
+
+    private void init() {
+        Cookie cookie = getCookie();
+        try {
+            if (cookie != null && cookie.getValue() != null && !cookie.getValue().trim().isEmpty()) {
+                String value = cookie.getValue();
+                String sign = value.substring(0, value.indexOf("-"));
+                String payload = value.substring(value.indexOf("-") + 1);
+                if (CookieDataCodec.safeEquals(sign, Crypto.signHmacSha1(payload, sessionConfig.getSecret()))) {
+                    payload = CookieEncryption.getInstance(sessionConfig.getSecret()).decrypt(payload);
+                    CookieDataCodec.decode(data, payload);
+                }
+
+                if (data.containsKey(EXPIRY_TIME_KEY)) {
+                    Long expiryTime = Long.parseLong(data.get(EXPIRY_TIME_KEY));
+                    if (expiryTime >= 0) {
+                        sessionExpireTimeInMs = expiryTime;
+                    }
+                }
+                checkExpire();
+            }
+        } catch (UnsupportedEncodingException u) {
+            u.printStackTrace();
+        }
+
+        String currentTime = Long.toString(System.currentTimeMillis());
+        if (!data.containsKey(CREATE_TIME_KEY)) {
+            data.put(CREATE_TIME_KEY, currentTime);
+        }
+        data.put(LAST_TIME_KEY, currentTime);
+    }
+
+    private Cookie getCookie() {
+        Cookie[] cookies = this.httpServletRequest.getCookies();
+        if (null != cookies) {
+            for (Cookie cookie_ : cookies) {
+                if (cookie_.getName().equals(sessionCookieName)) {
+                    return cookie_;
+                }
+            }
+        }
+        return null;
+    }
+
+
+    public void save(HttpServletResponse httpServletResponse) {
+        if (!sessionDataHasBeenChanged && sessionExpireTimeInMs == null) {
+            return;
+        }
+        sessionDataHasBeenChanged = false;
+        if (isEmpty()) {
+            Cookie cookie = getCookie();
+            if (null != cookie) {
+                cookie.setMaxAge(0);
+                cookie.setPath("/");
+                httpServletResponse.addCookie(cookie);
+            }
+            return;
+        }
+        if (sessionExpireTimeInMs != null && !data.containsKey(TIMESTAMP_KEY)) {
+            data.put(TIMESTAMP_KEY, Long.toString(System.currentTimeMillis()));
+        }
+        try {
+            String sessionData = CookieDataCodec.encode(data);
+            sessionData = CookieEncryption.getInstance(secret).encrypt(sessionData);
+            String sign = Crypto.signHmacSha1(sessionData, secret);
+
+            Cookie cookie = createCookie(sessionCookieName, sign + "-" + sessionData);
+
+            if (sessionExpireTimeInMs != null) {
+                cookie.setMaxAge((int) (sessionExpireTimeInMs / 1000L));
+            }
+            httpServletResponse.addCookie(cookie);
+
+        } catch (UnsupportedEncodingException unsupportedEncodingException) {
+            logger.error("Encoding exception - this must not happen", unsupportedEncodingException);
+            throw new RuntimeException(unsupportedEncodingException);
+        }
+
+    }
+
+    private Cookie createCookie(
+            String sessionCookieName,
+            String value) {
+        Cookie cookie = new Cookie(sessionCookieName, value);
+        if (applicationCookieDomain != null) {
+            cookie.setDomain(applicationCookieDomain);
+        }
+        if (sessionTransferredOverHttpsOnly != null) {
+            cookie.setSecure(sessionTransferredOverHttpsOnly);
+        }
+        if (sessionHttpOnly != null) {
+            cookie.setHttpOnly(sessionHttpOnly);
+        }
+        return cookie;
+    }
+
+
+    private boolean isEmpty() {
+        int itemsToIgnore = 0;
+        if (data.containsKey(TIMESTAMP_KEY)) {
+            itemsToIgnore++;
+        }
+        if (data.containsKey(EXPIRY_TIME_KEY)) {
+            itemsToIgnore++;
+        }
+        return (data.isEmpty() || data.size() == itemsToIgnore);
+    }
+
+    private boolean shouldExpire() {
+        if (sessionExpireTimeInMs != null) {
+            if (!data.containsKey(TIMESTAMP_KEY)) {
+                return true;
+            }
+            Long timestamp = Long.parseLong(data.get(TIMESTAMP_KEY));
+            return (timestamp + sessionExpireTimeInMs < System.currentTimeMillis());
+        }
+        return false;
+    }
+
+    private void checkExpire() {
+        if (sessionExpireTimeInMs != null) {
+            if (shouldExpire()) {
+                sessionDataHasBeenChanged = true;
+                data.clear();
+            } else {
+                data.put(TIMESTAMP_KEY, "" + System.currentTimeMillis());
+            }
+        }
+    }
+
+    private void setExpiryTime(Long expiryTimeMs) {
+        if (expiryTimeMs == null) {
+            data.remove(EXPIRY_TIME_KEY);
+            sessionDataHasBeenChanged = true;
+        } else {
+            data.put(EXPIRY_TIME_KEY, "" + expiryTimeMs);
+
+            sessionExpireTimeInMs = expiryTimeMs;
+        }
+
+        if (sessionExpireTimeInMs != null) {
+            if (!data.containsKey(TIMESTAMP_KEY)) {
+                data.put(TIMESTAMP_KEY, "" + System.currentTimeMillis());
+            }
+
+            checkExpire();
+
+            sessionDataHasBeenChanged = true;
+        }
+    }
+
+    public long getCreationTime() {
+        return Long.valueOf(data.get(CREATE_TIME_KEY));
+    }
+
+    public String getId() {
+        if (!data.containsKey(ID_KEY)) {
+            data.put(ID_KEY, UUID.randomUUID().toString());
+        }
+        return data.get(ID_KEY);
+    }
+
+    public long getLastAccessedTime() {
+        return 0;
+    }
+
+    public ServletContext getServletContext() {
+        return httpServletRequest.getServletContext();
+    }
+
+    public void setMaxInactiveInterval(int interval) {
+        this.sessionExpireTimeInMs = interval * 1000l;
+    }
+
+    public int getMaxInactiveInterval() {
+        return (int) (sessionExpireTimeInMs / 1000L);
+    }
+
+    public HttpSessionContext getSessionContext() {
+        return null;
+    }
+
+    public Object getAttribute(String name) {
+        return data.get(name);
+    }
+
+    public Object getValue(String name) {
+        return getAttribute(name);
+    }
+
+    public Enumeration<String> getAttributeNames() {
+        final Iterator it = data.keySet().iterator();
+        return new Enumeration() {
+            @Override
+            public boolean hasMoreElements() {
+                return it.hasNext();
+            }
+
+            @Override
+            public Object nextElement() {
+                return it.next();
+            }
+        };
+    }
+
+    public String[] getValueNames() {
+        return data.keySet().toArray(new String[data.size()]);
+    }
+
+    public void setAttribute(String name, Object value) {
+        if (name.contains(":")) {
+            throw new IllegalArgumentException(
+                    "Character ':' is invalid in a session key.");
+        }
+
+        sessionDataHasBeenChanged = true;
+
+        if (value == null) {
+            removeAttribute(name);
+        } else {
+            data.put(name, value.toString());
+        }
+    }
+
+    public void putValue(String name, Object value) {
+        setAttribute(name, value);
+    }
+
+    public void removeAttribute(String name) {
+        sessionDataHasBeenChanged = true;
+        data.remove(name);
+    }
+
+    public void removeValue(String name) {
+        removeAttribute(name);
+    }
+
+    public void invalidate() {
+        sessionDataHasBeenChanged = true;
+        data.clear();
+    }
+
+    public boolean isNew() {
+        if(!data.containsKey(NEW_KEY)){
+            data.put(NEW_KEY,"1");
+            return true;
+        }
+        return false;
+    }
+}
