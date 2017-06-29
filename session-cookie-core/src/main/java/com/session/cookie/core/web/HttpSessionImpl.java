@@ -19,8 +19,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * Created by wangziqing on 17/6/22.
  */
 public class HttpSessionImpl implements HttpSession {
-
-
     private final static Logger logger = LoggerFactory.getLogger(HttpSessionImpl.class);
 
     final String LAST_TIME_KEY = "___LT";
@@ -90,19 +88,6 @@ public class HttpSessionImpl implements HttpSession {
         data.put(LAST_TIME_KEY, currentTime);
     }
 
-    private Cookie getCookie() {
-        Cookie[] cookies = this.httpServletRequest.getCookies();
-        if (null != cookies) {
-            for (Cookie cookie_ : cookies) {
-                if (cookie_.getName().equals(sessionCookieName)) {
-                    return cookie_;
-                }
-            }
-        }
-        return null;
-    }
-
-
     public void save(HttpServletResponse httpServletResponse) {
         if (!sessionDataHasBeenChanged && sessionExpireTimeInMs == null) {
             return;
@@ -136,7 +121,6 @@ public class HttpSessionImpl implements HttpSession {
             logger.error("Encoding exception - this must not happen", unsupportedEncodingException);
             throw new RuntimeException(unsupportedEncodingException);
         }
-
     }
 
     private Cookie createCookie(
@@ -153,6 +137,20 @@ public class HttpSessionImpl implements HttpSession {
             cookie.setHttpOnly(sessionHttpOnly);
         }
         return cookie;
+    }
+
+
+
+    private Cookie getCookie() {
+        Cookie[] cookies = this.httpServletRequest.getCookies();
+        if (null != cookies) {
+            for (Cookie cookie_ : cookies) {
+                if (cookie_.getName().equals(sessionCookieName)) {
+                    return cookie_;
+                }
+            }
+        }
+        return null;
     }
 
 
@@ -208,10 +206,12 @@ public class HttpSessionImpl implements HttpSession {
         }
     }
 
+    @Override
     public long getCreationTime() {
         return Long.valueOf(data.get(CREATE_TIME_KEY));
     }
 
+    @Override
     public String getId() {
         if (!data.containsKey(ID_KEY)) {
             data.put(ID_KEY, UUID.randomUUID().toString());
@@ -219,34 +219,42 @@ public class HttpSessionImpl implements HttpSession {
         return data.get(ID_KEY);
     }
 
+    @Override
     public long getLastAccessedTime() {
         return Long.valueOf(data.get(LAST_TIME_KEY));
     }
 
+    @Override
     public ServletContext getServletContext() {
         return httpServletRequest.getServletContext();
     }
 
+    @Override
     public void setMaxInactiveInterval(int interval) {
         setExpiryTime(interval * 1000l);
     }
 
+    @Override
     public int getMaxInactiveInterval() {
         return (int) (sessionExpireTimeInMs / 1000L);
     }
 
+    @Override
     public HttpSessionContext getSessionContext() {
         return null;
     }
 
+    @Override
     public Object getAttribute(String name) {
         return data.get(name);
     }
 
+    @Override
     public Object getValue(String name) {
         return getAttribute(name);
     }
 
+    @Override
     public Enumeration<String> getAttributeNames() {
         final Iterator it = data.keySet().iterator();
         return new Enumeration() {
@@ -262,10 +270,12 @@ public class HttpSessionImpl implements HttpSession {
         };
     }
 
+    @Override
     public String[] getValueNames() {
         return data.keySet().toArray(new String[data.size()]);
     }
 
+    @Override
     public void setAttribute(String name, Object value) {
         if (name.contains(":")) {
             throw new IllegalArgumentException(
@@ -281,24 +291,29 @@ public class HttpSessionImpl implements HttpSession {
         }
     }
 
+    @Override
     public void putValue(String name, Object value) {
         setAttribute(name, value);
     }
 
+    @Override
     public void removeAttribute(String name) {
         sessionDataHasBeenChanged = true;
         data.remove(name);
     }
 
+    @Override
     public void removeValue(String name) {
         removeAttribute(name);
     }
 
+    @Override
     public void invalidate() {
         sessionDataHasBeenChanged = true;
         data.clear();
     }
 
+    @Override
     public boolean isNew() {
         if(!data.containsKey(NEW_KEY)){
             data.put(NEW_KEY,"1");
