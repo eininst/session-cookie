@@ -7,7 +7,7 @@
 
     <groupId>com.session.cookie</groupId>
     <artifactId>session-cookie</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0</version>
 
 
     <distributionManagement>
@@ -79,7 +79,7 @@
             <dependency>
                 <groupId>com.session.cookie.core</groupId>
                 <artifactId>session-cookie-core</artifactId>
-                <version>1.0-SNAPSHOT</version>
+                <version>1.0</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

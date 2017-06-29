@@ -203,9 +203,7 @@ public class HttpSessionImpl implements HttpSession {
             if (!data.containsKey(TIMESTAMP_KEY)) {
                 data.put(TIMESTAMP_KEY, "" + System.currentTimeMillis());
             }
-
             checkExpire();
-
             sessionDataHasBeenChanged = true;
         }
     }
@@ -222,7 +220,7 @@ public class HttpSessionImpl implements HttpSession {
     }
 
     public long getLastAccessedTime() {
-        return 0;
+        return Long.valueOf(data.get(LAST_TIME_KEY));
     }
 
     public ServletContext getServletContext() {
@@ -230,7 +228,7 @@ public class HttpSessionImpl implements HttpSession {
     }
 
     public void setMaxInactiveInterval(int interval) {
-        this.sessionExpireTimeInMs = interval * 1000l;
+        setExpiryTime(interval * 1000l);
     }
 
     public int getMaxInactiveInterval() {
